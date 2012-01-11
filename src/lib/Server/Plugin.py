@@ -356,7 +356,7 @@ class FileBacked(object):
         object.__init__(self)
         self.data = ''
         self.name = name
-
+        
     def HandleEvent(self, event=None):
         """Read file upon update."""
         if event and event.code2str() not in ['exists', 'changed', 'created']:

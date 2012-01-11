@@ -1,8 +1,7 @@
-import lxml.etree
 import re
-
+import logging
+import lxml.etree
 import Bcfg2.Server.Plugin
-
 
 class PackedDigitRange(object):
     def __init__(self, digit_range):
@@ -25,7 +24,7 @@ class PackedDigitRange(object):
 
 
 class PatternMap(object):
-    range_finder = '\\[\\[[\d\-,]+\\]\\]'
+    range_finder = r'\[\[[\d\-,]+\]\]'
 
     def __init__(self, pattern, rangestr, groups):
         self.pattern = pattern
@@ -35,15 +34,18 @@ class PatternMap(object):
             self.re = re.compile(pattern)
             self.process = self.process_re
         elif rangestr != None:
+            if '\\' in rangestr:
+                raise Exception("Backslashes are not allowed in NameRanges")
             self.process = self.process_range
-            self.re = re.compile('^' + re.subn(self.range_finder, '(\d+)',
-                                               rangestr)[0])
-            dmatcher = re.compile(re.subn(self.range_finder,
-                                          '\\[\\[([\d\-,]+)\\]\\]',
-                                          rangestr)[0])
-            self.dranges = [PackedDigitRange(x) for x in dmatcher.match(rangestr).groups()]
+            self.re = re.compile('^' + re.sub(self.range_finder, '(\d+)',
+                                              rangestr))
+            dmatcher = re.compile(re.sub(self.range_finder,
+                                         r'\[\[([\d\-,]+)\]\]',
+                                         rangestr))
+            self.dranges = [PackedDigitRange(x)
+                            for x in dmatcher.match(rangestr).groups()]
         else:
-            raise Exception
+            raise Exception("No pattern or range given")
 
     def process_range(self, name):
         match = self.re.match(name)
@@ -75,6 +77,7 @@ class PatternFile(Bcfg2.Server.Plugin.SingleXMLFileBacked):
     def __init__(self, filename, fam):
         Bcfg2.Server.Plugin.SingleXMLFileBacked.__init__(self, filename, fam)
         self.patterns = []
+        self.logger = logging.getLogger(self.__class__.__name__)
 
     def Index(self):
         Bcfg2.Server.Plugin.SingleXMLFileBacked.Index(self)

@@ -129,9 +129,14 @@ class FileProbes(Bcfg2.Server.Plugin.Plugin,
         create = False
         try:
             cfg.entries[filename].bind_entry(entry, metadata)
-            create = True
         except Bcfg2.Server.Plugin.PluginExecutionError:
-            pass
+            create = True
+
+        # get current entry data
+        if entry.text and entry.get("encoding") == "base64":
+            entrydata = binascii.a2b_base64(entry.text)
+        else:
+            entrydata = entry.text
 
         if create:        
             self.logger.info("Writing new probed file %s" % fileloc)    
@@ -146,7 +151,8 @@ class FileProbes(Bcfg2.Server.Plugin.Plugin,
 
             infoxml = os.path.join("%s%s" % (cfg.data, filename),
                                    "info.xml")
-            self.write_infoxml(infoxml, entry, data)
+            if not os.path.exists(infoxml):
+                self.write_infoxml(infoxml, entry, data)
 
             # Service the FAM events queued up by the key generation
             # so the data structure entries will be available for
@@ -170,14 +176,14 @@ class FileProbes(Bcfg2.Server.Plugin.Plugin,
                 except Bcfg2.Server.Plugin.PluginExecutionError:
                     pass
                 tries += 1
-        elif cfgentry.data == contents:
+        elif entrydata == contents:
             self.logger.debug("Existing %s contents match probed contents" %
                               filename)
             return
         elif (entry.get('update', 'false').lower() == "true"):
             self.logger.info("Writing updated probed file %s" % fileloc)
             open(fileloc, 'wb').write(contents)
-
+            
             # service FAM events
             tries = 0
             updated = False
@@ -187,14 +193,18 @@ class FileProbes(Bcfg2.Server.Plugin.Plugin,
                     raise Bcfg2.Server.Plugin.PluginExecutionError
                 self.core.fam.handle_events_in_interval(1)
                 cfg.entries[filename].bind_entry(entry, metadata)
-                if entry.text == contents:
+                # get current entry data
+                if entry.get("encoding") == "base64":
+                    entrydata = binascii.a2b_base64(entry.text)
+                else:
+                    entrydata = entry.text
+                if entrydata == contents:
                     updated = True
                 tries += 1
         else:
             self.logger.info("Skipping updated probed file %s" % fileloc)
             return
-
-
+    
     def write_infoxml(self, infoxml, entry, data):
         """ write an info.xml for the file """
         self.logger.info("Writing info.xml at %s for %s" %
